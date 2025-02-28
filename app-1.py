@@ -178,8 +178,8 @@ def translate_pdf(pdf_file, translated_texts):
 st.set_page_config(page_title="Auto Translator App with Format Preservation")
 st.title("Tự động dịch tài liệu (PPTX, DOCX, PDF) + Giữ định dạng")
 
-# api_key = st.text_input("Nhập OpenAI API key của bạn:", type="password")
-api_key = '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'
+api_key = st.text_input("Nhập OpenAI API key của bạn:", type="password")
+
 uploaded_excel_dict = st.file_uploader("Tải lên file Excel chứa thuật ngữ chuyên ngành", type=["xlsx"])
 specialized_dict = load_specialized_dict_from_excel(uploaded_excel_dict)
 
