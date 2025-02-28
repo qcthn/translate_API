@@ -100,24 +100,27 @@ def translate_text_with_chatgpt(original_text, api_key, global_dict=None):
 
     user_prompt = f"{dict_prompt}Văn bản cần dịch:\n{original_text}"
 
-    # Gán API key trực tiếp
-    openai.api_key = api_key
+    try:
+        client = openai.OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.2,
+            max_tokens=2048
+        )
 
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        temperature=0.2,
-        max_tokens=2048
-    )
+        translated_text = response.choices[0].message.content
+        total_tokens_used = response.usage.total_tokens if response.usage else 0
 
-    translated_text = response['choices'][0]['message']['content']
-    total_tokens_used = response['usage']['total_tokens'] if 'usage' in response else 0
+        check_and_wait_for_rate_limit(total_tokens_used)
+        return translated_text
 
-    check_and_wait_for_rate_limit(total_tokens_used)
-    return translated_text
+    except Exception as e:
+        st.error(f"Lỗi khi khởi tạo client OpenAI hoặc gọi API: {str(e)}")
+        raise
 
 
 ########################################################################
