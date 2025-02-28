@@ -100,9 +100,10 @@ def translate_text_with_chatgpt(original_text, api_key, global_dict=None):
 
     user_prompt = f"{dict_prompt}Văn bản cần dịch:\n{original_text}"
 
-    client = openai.OpenAI(api_key=api_key)
+    # Gán API key trực tiếp
+    openai.api_key = api_key
 
-    response = client.chat.completions.create(
+    response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
             {"role": "system", "content": system_prompt},
@@ -112,11 +113,12 @@ def translate_text_with_chatgpt(original_text, api_key, global_dict=None):
         max_tokens=2048
     )
 
-    translated_text = response.choices[0].message.content
-    total_tokens_used = response.usage.total_tokens if response.usage else 0
+    translated_text = response['choices'][0]['message']['content']
+    total_tokens_used = response['usage']['total_tokens'] if 'usage' in response else 0
 
     check_and_wait_for_rate_limit(total_tokens_used)
     return translated_text
+
 
 ########################################################################
 # 4) XỬ LÝ ĐỊNH DẠNG DOCX / PPTX / PDF
