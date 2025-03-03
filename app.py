@@ -76,7 +76,7 @@ def adjust_text_fit(text_frame, shape):
 
 def distribute_text_across_runs(para, translated_text):
     """
-    Evenly distribute translated text across runs while preserving formatting.
+    Phân phối đều văn bản đã dịch qua các run trong khi giữ nguyên định dạng.
     """
     original_text = "".join(run.text for run in para.runs)
     if not original_text.strip():
@@ -91,41 +91,41 @@ def distribute_text_across_runs(para, translated_text):
         if not run.text:
             continue
 
-        # Calculate proportional distribution of text
+        # Tính toán phân phối văn bản theo tỷ lệ
         run_len = len(run.text)
         portion = min(run_len / total_original_len, 1.0)
         chars_to_take = int(len(translated_text) * portion)
 
-        # Update text while preserving formatting
+        # Cập nhật văn bản trong khi giữ nguyên định dạng
         run.text = remaining_text[:chars_to_take]
         remaining_text = remaining_text[chars_to_take:]
 
-        # Preserve formatting (font, size, bold, italic, color)
+        # Giữ nguyên định dạng (font, cỡ chữ, in đậm, in nghiêng, màu sắc)
         if run.font is not None:
-            run.font.name = run.font.name  # Preserve font type
-            run.font.size = run.font.size  # Preserve font size
-            run.font.bold = run.font.bold  # Preserve bold
-            run.font.italic = run.font.italic  # Preserve italic
+            run.font.name = run.font.name  # Giữ font chữ
+            run.font.size = run.font.size  # Giữ cỡ chữ
+            run.font.bold = run.font.bold  # Giữ in đậm
+            run.font.italic = run.font.italic  # Giữ in nghiêng
             
             if run.font.color and hasattr(run.font.color, 'rgb'):
-                run.font.color.rgb = run.font.color.rgb  # Preserve color
+                run.font.color.rgb = run.font.color.rgb  # Giữ màu sắc
 
-    # Append any remaining text to the last run
+    # Gắn phần văn bản còn lại vào run cuối cùng (nếu có)
     if remaining_text and para.runs:
         para.runs[-1].text += remaining_text
 
 def translate_pptx(pptx_file: BytesIO, api_key: str, specialized_dict: dict[str, str]) -> BytesIO:
     """
-    Translate text in a PowerPoint file while preserving original font, size, and color.
-    Handles text overflow by adjusting font size dynamically.
+    Dịch văn bản trong file PowerPoint từ tiếng Anh sang tiếng Việt, giữ nguyên font, cỡ chữ và màu sắc gốc.
+    Xử lý văn bản tràn bằng cách điều chỉnh cỡ chữ động.
     
     Args:
-        pptx_file: BytesIO object containing the PPTX file
-        api_key: OpenAI API key
-        specialized_dict: Dictionary of specialized terms (English -> Vietnamese)
+        pptx_file: Đối tượng BytesIO chứa file PPTX
+        api_key: Khóa API OpenAI
+        specialized_dict: Từ điển thuật ngữ chuyên ngành (Anh -> Việt)
     
     Returns:
-        BytesIO object with the translated PPTX file
+        Đối tượng BytesIO chứa file PPTX đã dịch
     """
     pr = Presentation(pptx_file)
     total_slides = len(pr.slides)
@@ -143,29 +143,35 @@ def translate_pptx(pptx_file: BytesIO, api_key: str, specialized_dict: dict[str,
                     if not para.text.strip():
                         continue
 
-                    # Collect original text
+                    # Thu thập văn bản gốc
                     original_text = "".join(run.text for run in para.runs)
                     translated_text = translate_text_with_chatgpt(original_text, api_key, specialized_dict)
 
-                    # Skip empty or unchanged translation
+                    # Bỏ qua nếu không có bản dịch hoặc bản dịch không thay đổi
                     if not translated_text or translated_text == original_text or translated_text == 'Xin lỗi, nhưng văn bản bạn cung cấp không đủ để dịch. Bạn có thể cung cấp thêm ngữ cảnh hoặc thông tin chi tiết hơn không?':
                         continue
 
-                    # Distribute translated text across runs
-                    if translated_text != 'Xin lỗi, nhưng văn bản bạn cung cấp không đủ để dịch. Bạn có thể cung cấp thêm ngữ cảnh hoặc thông tin chi tiết hơn không?':
-                        distribute_text_across_runs(para, translated_text)
+                    # Phân phối văn bản đã dịch qua các run
+                    distribute_text_across_runs(para, translated_text)
 
-                # Adjust text fit to avoid overflow
+                # Điều chỉnh kích thước văn bản để tránh tràn
                 adjust_text_fit(text_frame, shape)
 
             elif shape.has_table:
                 for row in shape.table.rows:
                     for cell in row.cells:
-                        original_text = cell.text
-                        if original_text.strip():
+                        text_frame = cell.text_frame
+                        for para in text_frame.paragraphs:
+                            if not para.text.strip():
+                                continue
+                            # Thu thập văn bản gốc từ các run
+                            original_text = "".join(run.text for run in para.runs)
                             translated_text = translate_text_with_chatgpt(original_text, api_key, specialized_dict)
-                            if translated_text != 'Xin lỗi, nhưng văn bản bạn cung cấp không đủ để dịch. Bạn có thể cung cấp thêm ngữ cảnh hoặc thông tin chi tiết hơn không?':
-                                cell.text = translated_text  # Retains table structure & formatting
+                            # Chỉ cập nhật nếu bản dịch hợp lệ
+                            if translated_text and translated_text != original_text and translated_text != 'Xin lỗi, nhưng văn bản bạn cung cấp không đủ để dịch. Bạn có thể cung cấp thêm ngữ cảnh hoặc thông tin chi tiết hơn không?':
+                                distribute_text_across_runs(para, translated_text)
+                        # Tùy chọn: Điều chỉnh kích thước văn bản trong ô (nếu cần)
+                                # adjust_text_fit_for_cell(cell)
 
         progress_bar.progress((i+1) / total_slides)
 
@@ -177,13 +183,13 @@ def translate_pptx(pptx_file: BytesIO, api_key: str, specialized_dict: dict[str,
 
 # Streamlit UI
 st.set_page_config(page_title="Auto Translator App with Full Formatting")
-st.title("Tự động dịch tài liệu (PPTX, DOCX, PDF) + Giữ nguyên định dạng & kích thước")
+st.title("Tự động dịch tài liệu (PPTX) + Giữ nguyên định dạng & kích thước")
 
 api_key = st.text_input("Nhập OpenAI API key của bạn:", type="password")
 uploaded_excel_dict = st.file_uploader("Tải lên file Excel chứa thuật ngữ chuyên ngành", type=["xlsx"])
 specialized_dict = load_specialized_dict_from_excel(uploaded_excel_dict)
 
-uploaded_file = st.file_uploader("Tải lên file cần dịch (PPTX, DOCX, PDF)", type=["pptx", "docx", "pdf"])
+uploaded_file = st.file_uploader("Tải lên file cần dịch (PPTX)", type=["pptx"])
 
 if uploaded_file and api_key and st.button("Bắt đầu dịch"):
     ext = uploaded_file.name.split(".")[-1].lower()
@@ -191,10 +197,6 @@ if uploaded_file and api_key and st.button("Bắt đầu dịch"):
     if ext == "pptx":
         output = translate_pptx(uploaded_file, api_key, specialized_dict)
         st.download_button("Tải về file PPTX đã dịch", output, "translated.pptx")
-
-    elif ext == "docx":
-        output = translate_docx(uploaded_file, api_key, specialized_dict)
-        st.download_button("Tải về file DOCX đã dịch", output, "translated.docx")
 
     else:
         st.error("Định dạng không được hỗ trợ.")
