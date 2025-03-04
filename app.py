@@ -1,3 +1,4 @@
+
 import streamlit as st
 import openai
 import time
@@ -8,6 +9,7 @@ from docx import Document
 from PyPDF2 import PdfReader, PdfWriter
 import pandas as pd
 from pptx.util import Pt
+import os
 
 
 # Rate limiting parameters
@@ -16,7 +18,19 @@ MAX_TOKENS_PER_MINUTE = 90000
 WINDOW_SECONDS = 60
 requests_timestamps = deque()
 tokens_timestamps = deque()
+# Đọc API key từ tệp
+API_KEY_FILE = "api_key.txt"
+def get_api_key():
+    if os.path.exists(API_KEY_FILE):
+        with open(API_KEY_FILE, "r") as f:
+            return f.read().strip()
+    return None
 
+# Khởi tạo API key
+api_key = get_api_key()
+if not api_key:
+    st.error("Không tìm thấy API key. Hãy chắc chắn rằng tệp 'api_key.txt' chứa API key của bạn.")
+    st.stop()
 def check_and_wait_for_rate_limit(tokens_used: int):
     current_time = time.time()
     while requests_timestamps and (current_time - requests_timestamps[0] > WINDOW_SECONDS):
@@ -113,8 +127,36 @@ def distribute_text_across_runs(para, translated_text):
     # Gắn phần văn bản còn lại vào run cuối cùng (nếu có)
     if remaining_text and para.runs:
         para.runs[-1].text += remaining_text
+def delete_unwanted_slides(pr, start_slide, end_slide):
+    """
+    Xóa các slide không nằm trong khoảng start_slide đến end_slide, đảm bảo hoạt động chính xác ngay cả khi
+    chỉ lấy một phạm vi nhỏ từ một tệp lớn.
 
-def translate_pptx(pptx_file: BytesIO, api_key: str, specialized_dict: dict[str, str]) -> BytesIO:
+    Args:
+        pr (Presentation): Đối tượng PowerPoint cần xử lý.
+        start_slide (int): Slide bắt đầu giữ lại (chỉ mục 1-based).
+        end_slide (int): Slide kết thúc giữ lại (chỉ mục 1-based).
+    """
+    total_slides = len(pr.slides)
+
+    # Kiểm tra nếu phạm vi nằm ngoài số lượng slide có sẵn
+    if start_slide < 1 or end_slide > total_slides or start_slide > end_slide:
+        raise ValueError("Phạm vi slide không hợp lệ! Vui lòng nhập giá trị hợp lệ.")
+
+    # Danh sách các index slide cần giữ lại
+    keep_slides = set(range(start_slide - 1, end_slide))
+
+    # Lấy danh sách các slide ID thực sự trong XML
+    xml_slides = pr.slides._sldIdLst
+    slides = list(xml_slides)
+
+    # Xóa những slide không thuộc phạm vi cần giữ lại (từ cuối về đầu)
+    for i in reversed(range(total_slides)):
+        if i not in keep_slides:
+            pr.part.drop_rel(slides[i].rId)
+            xml_slides.remove(slides[i])
+
+def translate_pptx(pptx_file: BytesIO, api_key: str, specialized_dict: dict[str, str],start_slide: int, end_slide: int) -> BytesIO:
     """
     Dịch văn bản trong file PowerPoint từ tiếng Anh sang tiếng Việt, giữ nguyên font, cỡ chữ và màu sắc gốc.
     Xử lý văn bản tràn bằng cách điều chỉnh cỡ chữ động.
@@ -128,12 +170,24 @@ def translate_pptx(pptx_file: BytesIO, api_key: str, specialized_dict: dict[str,
         Đối tượng BytesIO chứa file PPTX đã dịch
     """
     pr = Presentation(pptx_file)
-    total_slides = len(pr.slides)
     progress_bar = st.progress(0)
     status_text = st.empty()
+    # new_presentation = Presentation()
+    # for i, slide in enumerate(pr.slides):
+    #     status_text.text(f"Đang dịch slide {i+1}/{total_slides}...")
+    # slides_to_delete = [i for i in range(total_slides) if i < start_slide - 1 or i >= end_slide]
 
-    for i, slide in enumerate(pr.slides):
-        status_text.text(f"Đang dịch slide {i+1}/{total_slides}...")
+    # for index in reversed(slides_to_delete):  # Xóa từ cuối về đầu để tránh lỗi index
+    #     xml_slides = pr.slides._sldIdLst  
+    #     slides = list(xml_slides)
+    #     pr.part.drop_rel(slides[index].rId)
+    #     xml_slides.remove(slides[index])
+    # delete_unwanted_slides(pr, start_slide, end_slide)
+    total_slides = len(pr.slides)
+    for i in range(start_slide - 1, end_slide):
+    # for i, slide in enumerate(total_slides):
+        slide = pr.slides[i]
+        status_text.text(f"Đang dịch slide {i+1}/{end_slide}...")
 
         for shape in slide.shapes:
             if shape.has_text_frame:
@@ -173,8 +227,8 @@ def translate_pptx(pptx_file: BytesIO, api_key: str, specialized_dict: dict[str,
                         # Tùy chọn: Điều chỉnh kích thước văn bản trong ô (nếu cần)
                                 # adjust_text_fit_for_cell(cell)
 
-        progress_bar.progress((i+1) / total_slides)
-
+        progress_bar.progress((i+1 - (start_slide - 1)) / (end_slide - start_slide + 1))
+    delete_unwanted_slides(pr, start_slide, end_slide)
     output = BytesIO()
     pr.save(output)
     output.seek(0)
@@ -183,20 +237,23 @@ def translate_pptx(pptx_file: BytesIO, api_key: str, specialized_dict: dict[str,
 
 # Streamlit UI
 st.set_page_config(page_title="Auto Translator App with Full Formatting")
-st.title("Tự động dịch tài liệu (PPTX) + Giữ nguyên định dạng & kích thước")
+st.title("VN DITECH JSC")
+st.subheader("_Tự động dịch tài liệu_ :orange[(PPTX)] . _Giữ nguyên định dạng_", divider="orange")
 
-api_key = st.text_input("Nhập OpenAI API key của bạn:", type="password")
-uploaded_excel_dict = st.file_uploader("Tải lên file Excel chứa thuật ngữ chuyên ngành", type=["xlsx"])
+
+# api_key = st.text_input("Nhập OpenAI API key của bạn:", type="password")
+uploaded_excel_dict = st.file_uploader("Tải file từ điển nếu có ( Excel )", type=["xlsx"])
 specialized_dict = load_specialized_dict_from_excel(uploaded_excel_dict)
 
 uploaded_file = st.file_uploader("Tải lên file cần dịch (PPTX)", type=["pptx"])
 
-if uploaded_file and api_key and st.button("Bắt đầu dịch"):
-    ext = uploaded_file.name.split(".")[-1].lower()
+if uploaded_file:
+    pr = Presentation(uploaded_file)
+    total_slides = len(pr.slides)
+    start_slide = st.number_input("Chọn trang bắt đầu", min_value=1, max_value=total_slides, value=1)
+    end_slide = st.number_input("Chọn trang kết thúc", min_value=start_slide, max_value=total_slides, value=total_slides)
     
-    if ext == "pptx":
-        output = translate_pptx(uploaded_file, api_key, specialized_dict)
-        st.download_button("Tải về file PPTX đã dịch", output, "translated.pptx")
-
-    else:
-        st.error("Định dạng không được hỗ trợ.")
+    if st.button("Dịch file PPTX") and api_key:
+        output = translate_pptx(uploaded_file, api_key, specialized_dict, start_slide, end_slide)
+        file_name = "VN_" + uploaded_file.name
+        st.download_button("Tải về file đã dịch", output, file_name )
