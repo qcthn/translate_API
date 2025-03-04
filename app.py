@@ -19,18 +19,18 @@ WINDOW_SECONDS = 60
 requests_timestamps = deque()
 tokens_timestamps = deque()
 # Đọc API key từ tệp
-API_KEY_FILE = "~/api_key.txt"
-def get_api_key():
-    if os.path.exists(API_KEY_FILE):
-        with open(API_KEY_FILE, "r") as f:
-            return f.read().strip()
-    return None
+# API_KEY_FILE = "api_key.txt"
+# def get_api_key():
+#     if os.path.exists(API_KEY_FILE):
+#         with open(API_KEY_FILE, "r") as f:
+#             return f.read().strip()
+#     return None
 
-# Khởi tạo API key
-api_key = get_api_key()
-if not api_key:
-    st.error("Không tìm thấy API key. Hãy chắc chắn rằng tệp 'api_key.txt' chứa API key của bạn.")
-    st.stop()
+# # Khởi tạo API key
+# api_key = get_api_key()
+# if not api_key:
+#     st.error("Không tìm thấy API key. Hãy chắc chắn rằng tệp 'api_key.txt' chứa API key của bạn.")
+#     st.stop()
 def check_and_wait_for_rate_limit(tokens_used: int):
     current_time = time.time()
     while requests_timestamps and (current_time - requests_timestamps[0] > WINDOW_SECONDS):
@@ -241,7 +241,7 @@ st.title("VN DITECH JSC")
 st.subheader("_Tự động dịch tài liệu_ :orange[(PPTX)] . _Giữ nguyên định dạng_", divider="orange")
 
 
-# api_key = st.text_input("Nhập OpenAI API key của bạn:", type="password")
+api_key = st.text_input("Nhập OpenAI API key của bạn:", type="password")
 uploaded_excel_dict = st.file_uploader("Tải file từ điển nếu có ( Excel )", type=["xlsx"])
 specialized_dict = load_specialized_dict_from_excel(uploaded_excel_dict)
 
