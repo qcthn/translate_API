@@ -19,7 +19,7 @@ WINDOW_SECONDS = 60
 requests_timestamps = deque()
 tokens_timestamps = deque()
 # Đọc API key từ tệp
-API_KEY_FILE = "api_key.txt"
+API_KEY_FILE = "~/api_key.txt"
 def get_api_key():
     if os.path.exists(API_KEY_FILE):
         with open(API_KEY_FILE, "r") as f:
